@@ -91,9 +91,9 @@ class RecurringContract(models.Model):
             if contract.child_id.project_id.suspension != 'fund-suspended':
                 invoice_lines = contract.invoice_line_ids.with_context(
                     lang='en_US').filtered(
-                        lambda i: i.state == 'open' and
-                        fields.Date.from_string(i.due_date) < this_month and
-                        i.invoice_id.invoice_type == 'sponsorship'
+                    lambda i: i.state == 'open'
+                    and fields.Date.from_string(i.due_date) < this_month
+                    and i.invoice_id.invoice_type == 'sponsorship'
                 )
                 contract.due_invoice_ids = invoice_lines.mapped('invoice_id')
                 contract.amount_due = int(sum(invoice_lines.mapped(
@@ -215,7 +215,7 @@ class RecurringContract(models.Model):
         self._send_reminders_for_birthday_in_1day_or_2months()
 
         logger.info("....Send Welcome Activations Letters")
-        self._send_welcome_letters_for_sponsorships_created_in_last_24h()
+        self._send_welcome_letters_for_sponsorships_activated_in_last_24h()
 
         logger.info("Sponsorship Planned Communications finished!")
 
@@ -253,9 +253,9 @@ class RecurringContract(models.Model):
                     correspondent=True,
                     both=send_to_partner_as_he_paid_the_gift
                 )
-            except Exception as e:
+            except Exception:
                 # In any case, we don't want to stop email generation!
-                logger.error("Error during birthday reminder: ", e)
+                logger.error("Error during birthday reminder: ", exc_info=True)
 
     @api.model
     def _get_sponsorships_with_child_birthday_on(self, birth_day):
@@ -271,20 +271,21 @@ class RecurringContract(models.Model):
         ]).filtered(lambda c: not (
             c.child_id.project_id.lifecycle_ids and
             c.child_id.project_id.hold_s2b_letters)
-        )
+                    )
 
     @api.model
-    def _send_welcome_letters_for_sponsorships_created_in_last_24h(self):
+    def _send_welcome_letters_for_sponsorships_activated_in_last_24h(self):
         welcome = self.env.ref(
             'partner_communication_switzerland.welcome_activation')
+        activated_since = fields.Datetime.to_string(
+            datetime.today() - timedelta(days=1))
         to_send = self.env['recurring.contract'].search([
-            ('activation_date', '>=', (datetime.today() - timedelta(days=1))),
+            ('activation_date', '>=', activated_since),
             ('child_id', '!=', False)
         ])
         if to_send:
             to_send.send_communication(welcome, both=True).send()
             to_send.write({'sds_state': 'active'})
-
 
     @api.model
     def send_sponsorship_reminders(self):
@@ -306,12 +307,12 @@ class RecurringContract(models.Model):
         twenty_ago = today - relativedelta(days=20)
         comm_obj = self.env['partner.communication.job']
         for sponsorship in self.search([
-                ('state', 'in', ('active', 'mandate')),
-                ('global_id', '!=', False),
-                ('type', 'like', 'S'),
-                '|',
-                ('child_id.project_id.suspension', '!=', 'fund-suspended'),
-                ('child_id.project_id.suspension', '=', False),
+            ('state', 'in', ('active', 'mandate')),
+            ('global_id', '!=', False),
+            ('type', 'like', 'S'),
+            '|',
+            ('child_id.project_id.suspension', '!=', 'fund-suspended'),
+            ('child_id.project_id.suspension', '=', False),
         ]):
             due = sponsorship.due_invoice_ids
             advance_billing = sponsorship.group_id.advance_billing_months
@@ -411,7 +412,8 @@ class RecurringContract(models.Model):
         # Waiting welcome for partners with e-mail (except Demaurex)
         welcome = self.filtered(
             lambda s: 'S' in s.type and s.sds_state == 'draft' and
-            s.correspondent_id.email and s.partner_id.ref != '1502623')
+                      s.correspondent_id.email and s.partner_id.ref !=
+                      '1502623')
         welcome.write({
             'sds_state': 'waiting_welcome'
         })
@@ -420,7 +422,7 @@ class RecurringContract(models.Model):
         res = super(RecurringContract, self).contract_waiting()
         self.filtered(
             lambda c: 'S' in c.type and not c.is_active and c not in
-            mandates_valid
+                      mandates_valid
         )._new_dossier()
 
         if 'CSP' in self.name:
