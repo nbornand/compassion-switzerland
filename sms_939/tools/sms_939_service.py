@@ -31,8 +31,8 @@ class SmsNotificationAnswer(object):
             messages = [messages]
         if costs is not None and not isinstance(costs, list):
             costs = [costs]
-        if costs is not None and len(costs) != len(messages):
-            raise ValueError("Costs must be defined for each message sent.")
+        # if costs is not None and len(costs) != len(messages):
+        #     raise ValueError("Costs must be defined for each message sent.")
         self.messages = messages
         self.costs = costs
         self.maxSMSsize = maxSMSsize

@@ -16,6 +16,10 @@ from odoo import models, fields, api, _
 from odoo.exceptions import UserError
 from odoo.tools.config import config
 
+def smsbox_send(request, headers):
+    request_server = httplib.HTTPConnection(
+        'blue.smsbox.ch', 10020, timeout=10)
+    request_server.request('GET', '/Blue/sms/rest/user/websend?' + urllib.urlencode(request), headers=headers)
 
 class SmsSender(models.TransientModel):
 
@@ -59,8 +63,9 @@ class SmsSender(models.TransientModel):
             ('cost', 0),
             ('text', self.text)
         ]
-        request_server.request('GET', '/Blue/sms/rest/user/websend?'
-                               + urllib.urlencode(request), headers=headers)
+        print 'GET', '/Blue/sms/rest/user/websend?'+ urllib.urlencode(request)
+        # request_server.request('GET', '/Blue/sms/rest/user/websend?'
+        #                        + urllib.urlencode(request), headers=headers)
 
         return True
 

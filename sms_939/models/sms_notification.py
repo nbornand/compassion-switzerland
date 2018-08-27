@@ -14,8 +14,9 @@ import traceback
 
 
 from odoo import models, api, fields, tools, _
-
 from ..tools import SmsNotificationAnswer
+from odoo.addons.queue_job.job import job
+
 
 
 logger = logging.getLogger(__name__)
@@ -120,6 +121,7 @@ class SmsNotification(models.Model):
                     'failure_details': traceback.format_exc(),
                     'answer': sms_answer.xml_message
                 })
+        print "service ran"
         return sms_answer.get_answer()
 
     def sponsor_service_fr(self):
@@ -138,12 +140,17 @@ class SmsNotification(models.Model):
             'sender': self.sender,
             'lang_code': self.language
         })
-        return SmsNotificationAnswer(
-            _("Thank you for your will to help a child ! \n"
+        self.env['sms.sender.wizard'].create({
+            'text':_("Thank you for your will to help a child ! \n"
               "You can release a child from poverty today by clicking on this "
-              "link: %s") % child_request.full_url,
-            costs=0
-        )
+              "link: %s") % child_request.full_url
+        }).send_sms(mobile=child_request.sender)
+        # return SmsNotificationAnswer(
+        #     _("Thank you for your will to help a child ! \n"
+        #       "You can release a child from poverty today by clicking on this "
+        #       "link: %s") % child_request.full_url,
+        #     costs=0
+        # )
 
     def test_service(self):
         self.ensure_one()
@@ -151,3 +158,18 @@ class SmsNotification(models.Model):
 
     def test_service_error(self):
         raise Exception
+
+    @job
+    def delayed_response(self, parameters):
+        self.create({
+            'instance': parameters.get('instance'),
+            'sender': parameters.get('sender'),
+            'operator': parameters.get('operator'),
+            'service': parameters.get('service'),
+            'language': parameters.get('language'),
+            'date': parameters.get('receptionDate'),
+            'uuid': parameters.get('requestUid'),
+            'text': parameters.get('text'),
+        })
+        print "delayed"
+        self.run_service()
